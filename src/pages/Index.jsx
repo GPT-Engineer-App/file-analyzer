@@ -2,25 +2,55 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState(null);
+  const navigate = useNavigate();
 
   const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      const fileReader = new FileReader();
+      fileReader.onload = (e) => setPreviewUrl(e.target.result);
+      fileReader.readAsDataURL(selectedFile);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setFile(null);
+    setPreviewUrl(null);
   };
 
   const handleUpload = async () => {
     if (!file) return;
 
     setIsLoading(true);
-    // Simulating file analysis
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setAnalysisResult("File analysis complete. This is a placeholder result.");
-    setIsLoading(false);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const response = await fetch("/api/analyze-image", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to analyze image");
+      }
+
+      const result = await response.json();
+      navigate("/analysis-result", { state: { result } });
+    } catch (error) {
+      console.error("Error analyzing image:", error);
+      // Handle error (e.g., show error message to user)
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -36,7 +66,30 @@ const Index = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <Input type="file" onChange={handleFileChange} />
+              {!file && (
+                <Input
+                  type="file"
+                  onChange={handleFileChange}
+                  accept="image/*"
+                />
+              )}
+              {previewUrl && (
+                <div className="relative">
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
+                    className="w-full h-48 object-cover rounded-md"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="absolute top-2 right-2"
+                    onClick={handleRemoveFile}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
               <Button
                 onClick={handleUpload}
                 disabled={!file || isLoading}
@@ -48,14 +101,9 @@ const Index = () => {
                     Analyzing...
                   </>
                 ) : (
-                  "Upload"
+                  "Upload and Analyze"
                 )}
               </Button>
-              {analysisResult && (
-                <div className="mt-4 p-3 bg-secondary rounded-md">
-                  <p>{analysisResult}</p>
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
